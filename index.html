@@ -212,64 +212,34 @@ body {
 </div>
 
 <script>
-// ========= 数据层（通过 Cloudflare Worker 安全代理）=========
-const API_URL = 'https://1319668533-4nvz9e3q5b.ap-guangzhou.tencentscf.com/api/orders';
-let orders = [];
-let loadError = null;
-
-async function loadData() {
-  loadError = null;
-  try {
-    const resp = await fetch(API_URL + '?t=' + Date.now(), { cache: 'no-store' });
-    if (resp.ok) {
-      const data = await resp.json();
-      orders = data.orders || [];
-    } else {
-      orders = [];
-      loadError = '服务器返回错误(' + resp.status + ')';
-    }
-  } catch(e) {
-    orders = [];
-    loadError = '网络连接失败：' + e.message;
-  }
-}
-
-// 页面加载时预取数据
-loadData();
+// ========= 数据层（通过腾讯云SCF安全代理）=========
+const API_BASE = 'https://1319668533-4nvz9e3q5b.ap-guangzhou.tencentscf.com';
 
 // ========= 查询逻辑 =========
-function doQuery() {
+async function doQuery() {
   var rawVal = document.getElementById('queryPhone').value;
   var tail4 = rawVal.replace(/\D/g, '');
   if (!tail4) { toast('请输入手机后4位尾号', 'error'); return; }
   if (tail4.length !== 4) { toast('请输入手机号最后4位数字', 'error'); return; }
 
-  loadData().then(function() {
-    var resultDiv = document.getElementById('queryResult');
+  var resultDiv = document.getElementById('queryResult');
+  resultDiv.innerHTML = '<div class="empty-state" style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:32px;">' +
+    '<div class="empty-icon">⏳</div>' +
+    '<p style="font-size:15px;color:var(--gray-500);">正在查询...</p>' +
+    '</div>';
 
-    // 如果数据加载失败，显示错误信息
-    if (loadError) {
+  try {
+    const resp = await fetch(API_BASE + '/api/query?phone=' + tail4 + '&t=' + Date.now(), { cache: 'no-store' });
+    if (!resp.ok) {
       resultDiv.innerHTML = '<div class="empty-state" style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:32px;">' +
         '<div class="empty-icon">⚠️</div>' +
-        '<p style="font-size:15px;color:var(--danger);">数据加载失败</p>' +
-        '<p style="font-size:13px;color:var(--gray-400);margin-top:4px;">' + loadError + '</p>' +
-        '<p style="font-size:13px;color:var(--gray-400);margin-top:4px;">请检查网络后重试</p>' +
+        '<p style="font-size:15px;color:var(--danger);">查询失败</p>' +
+        '<p style="font-size:13px;color:var(--gray-400);margin-top:4px;">服务器返回错误(' + resp.status + ')，请稍后重试</p>' +
         '</div>';
       return;
     }
-
-    // 如果没有数据
-    if (orders.length === 0) {
-      resultDiv.innerHTML = '<div class="empty-state" style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:32px;">' +
-        '<div class="empty-icon">📦</div>' +
-        '<p style="font-size:15px;color:var(--gray-500);">暂无订单数据</p>' +
-        '</div>';
-      return;
-    }
-
-    var results = orders.filter(function(o) {
-      return o.phone && String(o.phone).slice(-4) === tail4;
-    });
+    const data = await resp.json();
+    var results = data.orders || [];
 
     if (results.length === 0) {
       resultDiv.innerHTML = '<div class="empty-state" style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:32px;">' +
@@ -283,16 +253,12 @@ function doQuery() {
     var statusLabel = { pending: '待发货', shipped: '已发货', delivered: '已签收', problem: '问题件' };
     var statusClass = { pending: 'status-pending', shipped: 'status-shipped', delivered: 'status-delivered', problem: 'status-problem' };
 
-    var hasMultiplePhones = new Set(results.map(function(o) { return o.phone; })).size > 1;
-
     resultDiv.innerHTML = results.map(function(o) {
       var trackLink = '';
       if (o.trackNo) {
         trackLink = 'https://www.kuaidi100.com/chaxun?nu=' + o.trackNo;
       }
-      var nameDisplay = hasMultiplePhones
-        ? o.name + '（尾号' + o.phone.slice(-4) + '）'
-        : o.name;
+      var nameDisplay = o.name;
       var productDisplay = o.product ? o.product : '';
       var html = '<div class="result-card">' +
         '<div class="order-header">' +
@@ -312,7 +278,14 @@ function doQuery() {
       html += '</div>';
       return html;
     }).join('');
-  });
+  } catch(e) {
+    resultDiv.innerHTML = '<div class="empty-state" style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:32px;">' +
+      '<div class="empty-icon">⚠️</div>' +
+      '<p style="font-size:15px;color:var(--danger);">网络连接失败</p>' +
+      '<p style="font-size:13px;color:var(--gray-400);margin-top:4px;">' + e.message + '</p>' +
+      '<p style="font-size:13px;color:var(--gray-400);margin-top:4px;">请检查网络后重试</p>' +
+      '</div>';
+  }
 }
 
 // ========= Toast提示 =========

@@ -600,7 +600,7 @@ tr:hover td { background: var(--gray-50); }
 <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 
 <script>
-// ========= 数据层（通过 Cloudflare Worker 安全代理）=========
+// ========= 数据层（通过腾讯云SCF安全代理）=========
 const API_URL = 'https://1319668533-4nvz9e3q5b.ap-guangzhou.tencentscf.com/api/orders';
 const PWD_KEY = 'shipping_admin_pwd';
 let orders = [];
@@ -609,21 +609,39 @@ let adminVerified = false;
 let sessionPwd = ''; // 当前会话的管理员密码
 
 async function loadData() {
+  // 先尝试从localStorage恢复（离线备用）
   try {
-    const resp = await fetch(API_URL + '?t=' + Date.now(), { headers: { 'Accept': 'application/json' } });
+    const raw = localStorage.getItem('shipping_orders');
+    orders = raw ? JSON.parse(raw) : [];
+  } catch(e) { orders = []; }
+
+  // 从云端加载（需要管理员密码）
+  if (!sessionPwd) return;
+  try {
+    const resp = await fetch(API_URL + '?t=' + Date.now(), {
+      headers: {
+        'Accept': 'application/json',
+        'X-Admin-Password': sessionPwd
+      }
+    });
     if (resp.ok) {
       const data = await resp.json();
       orders = data.orders || [];
-    } else {
-      orders = [];
+      try { localStorage.setItem('shipping_orders', JSON.stringify(orders)); } catch(e) {}
+    } else if (resp.status === 401) {
+      // 密码失效，需要重新验证
+      adminVerified = false;
+      sessionPwd = '';
+      document.getElementById('lockScreen').style.display = 'flex';
+      document.getElementById('mainNav').style.display = 'none';
+      document.getElementById('queryPage').style.display = 'none';
+      document.getElementById('adminPage').style.display = 'none';
+      document.getElementById('lockPwdInput').focus();
+      toast('密码已失效，请重新登录', 'error');
     }
   } catch(e) {
-    try {
-      const raw = localStorage.getItem('shipping_orders');
-      orders = raw ? JSON.parse(raw) : [];
-    } catch(e2) { orders = []; }
+    // 网络失败，使用localStorage数据
   }
-  try { localStorage.setItem('shipping_orders', JSON.stringify(orders)); } catch(e) {}
 }
 
 async function saveData() {
@@ -664,28 +682,15 @@ async function saveData() {
 }
 
 // ========= 初始化 =========
-loadData().then(() => {
-  if (orders.length > 0 || navigator.onLine) {
-    document.getElementById('syncIcon').textContent = '✅';
-    document.getElementById('syncText').textContent = `云端已连接（共 ${orders.length} 条数据）`;
-    document.getElementById('syncStatus').style.borderColor = 'var(--success)';
-    document.getElementById('syncStatus').style.background = 'var(--success-light)';
-  }
-
-  // 始终需要验证密码
-  if (!adminVerified) {
-    document.getElementById('lockScreen').style.display = 'flex';
-    document.getElementById('mainNav').style.display = 'none';
-    document.getElementById('queryPage').style.display = 'none';
-    document.getElementById('adminPage').style.display = 'none';
-    document.getElementById('lockPwdInput').focus();
-  } else {
-    refreshStats();
-    renderTable();
-    updateShareLink();
-    switchTab('query');
-  }
-});
+// 不再在页面加载时直接拉取数据（需要密码才能访问）
+// 先显示锁屏，验证密码后再加载数据
+if (!adminVerified) {
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.getElementById('mainNav').style.display = 'none';
+  document.getElementById('queryPage').style.display = 'none';
+  document.getElementById('adminPage').style.display = 'none';
+  document.getElementById('lockPwdInput').focus();
+}
 
 // ========= 导航切换 =========
 function switchTab(tab) {
@@ -703,7 +708,7 @@ function switchTab(tab) {
   if (tab === 'admin') { refreshStats(); renderTable(); }
 }
 
-// ========= 密码验证（通过Worker） =========
+// ========= 密码验证（通过SCF后端）=========
 async function unlockAdmin() {
   const input = document.getElementById('lockPwdInput').value;
   if (!input) { toast('请输入密码', 'error'); return; }
@@ -716,7 +721,23 @@ async function unlockAdmin() {
       adminVerified = true;
       document.getElementById('lockScreen').style.display = 'none';
       document.getElementById('mainNav').style.display = 'flex';
-      switchTab('admin');
+      // 验证成功后加载数据
+      await loadData();
+      refreshStats();
+      renderTable();
+      updateShareLink();
+      if (orders.length > 0) {
+        document.getElementById('syncIcon').textContent = '✅';
+        document.getElementById('syncText').textContent = `云端已连接（共 ${orders.length} 条数据）`;
+        document.getElementById('syncStatus').style.borderColor = 'var(--success)';
+        document.getElementById('syncStatus').style.background = 'var(--success-light)';
+      } else {
+        document.getElementById('syncIcon').textContent = '✅';
+        document.getElementById('syncText').textContent = '云端已连接（暂无数据）';
+        document.getElementById('syncStatus').style.borderColor = 'var(--success)';
+        document.getElementById('syncStatus').style.background = 'var(--success-light)';
+      }
+      switchTab('query');
     } else {
       toast('密码错误', 'error');
       document.getElementById('lockPwdInput').value = '';

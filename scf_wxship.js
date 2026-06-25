@@ -4,15 +4,16 @@
  * 部署方式：使用「函数URL」触发（不要用API网关）
  * 
  * 功能：
- * 1. GET  /api/orders  → 从COS读取订单数据（客户查询用）
- * 2. PUT  /api/orders  → 写入订单数据到COS（需管理员密码）
- * 3. GET  /api/verify   → 验证管理员密码
- * 4. OPTIONS *          → CORS预检
+ * 1. GET  /api/query   → 客户安全查询（只返回匹配的订单，不暴露全部数据）
+ * 2. GET  /api/orders  → 读取全部订单（需管理员密码，仅管理后台使用）
+ * 3. PUT  /api/orders  → 写入订单数据到COS（需管理员密码）
+ * 4. GET  /api/verify   → 验证管理员密码
+ * 5. OPTIONS *          → CORS预检
  * 
  * 环境变量（在SCF控制台 → 函数管理 → 函数配置 中设置）：
  * - SECRET_ID      腾讯云 SecretId
  * - SECRET_KEY     腾讯云 SecretKey
- * - ADMIN_PASSWORD 管理后台密码（当前：25800852）
+ * - ADMIN_PASSWORD 管理后台密码
  */
 
 const crypto = require('crypto');
@@ -103,13 +104,14 @@ function parseEvent(event) {
   var method, path, headers, body, isBase64, queryParams;
 
   // 函数URL格式（新）：event.requestContext.http.method
+  // 注意：函数URL的query参数在 event.queryString，不在 queryStringParameters
   if (event.requestContext && event.requestContext.http) {
     method = (event.requestContext.http.method || 'GET').toUpperCase();
     path = event.requestContext.http.path || '/';
     headers = event.headers || {};
     body = event.body;
     isBase64 = event.isBase64Encoded || false;
-    queryParams = event.queryStringParameters || {};
+    queryParams = event.queryString || event.queryStringParameters || {};
   }
   // API网关格式（旧）：event.httpMethod
   else {
@@ -151,8 +153,15 @@ exports.main_handler = async function (event, context) {
     };
   }
 
-  // ===== GET /api/orders - 读取订单 =====
-  if (apiPath === '/api/orders' && method === 'GET') {
+  // ===== GET /api/query - 客户安全查询（只返回匹配的订单，不暴露全部数据）=====
+  if (apiPath === '/api/query' && method === 'GET') {
+    var qs = event.queryString || event.queryStringParameters || {};
+    var tail4 = (qs.phone || '').replace(/\D/g, '');
+
+    if (!tail4 || tail4.length !== 4) {
+      return jsonResp(400, JSON.stringify({ error: '请输入手机后4位' }));
+    }
+
     try {
       var cosPath = '/' + DATA_KEY + '?t=' + Date.now();
       var resp = await cosRequest('GET', cosPath);
@@ -161,11 +170,62 @@ exports.main_handler = async function (event, context) {
         return jsonResp(200, JSON.stringify({ orders: [] }));
       }
       if (resp.statusCode !== 200) {
-        console.error('COS GET error:', resp.statusCode, resp.body);
-        return jsonResp(resp.statusCode, JSON.stringify({ error: 'COS读取失败', detail: resp.body }));
+        return jsonResp(500, JSON.stringify({ error: '读取失败' }));
       }
 
-      return jsonResp(200, resp.body);
+      var allData = JSON.parse(resp.body);
+      var allOrders = allData.orders || [];
+
+      // 后端筛选：只返回匹配的订单，且只返回必要字段（不返回完整手机号）
+      var matched = allOrders
+        .filter(function(o) {
+          return o.phone && String(o.phone).slice(-4) === tail4;
+        })
+        .map(function(o) {
+          return {
+            name: o.name || '',
+            trackNo: o.trackNo || '',
+            product: o.product || '',
+            status: o.status || 'pending',
+            phoneTail: String(o.phone).slice(-4)
+          };
+        });
+
+      return jsonResp(200, JSON.stringify({ orders: matched }));
+    } catch (e) {
+      return jsonResp(500, JSON.stringify({ error: e.message }));
+    }
+  }
+
+  // ===== GET /api/orders - 读取全部订单（需管理员密码）=====
+  if (apiPath === '/api/orders' && method === 'GET') {
+    // 验证管理员密码
+    var getAdminPwd = '';
+    if (headers) {
+      for (var k2 in headers) {
+        if (k2.toLowerCase() === 'x-admin-password') {
+          getAdminPwd = headers[k2];
+          break;
+        }
+      }
+    }
+    if (!getAdminPwd || !process.env.ADMIN_PASSWORD || getAdminPwd !== process.env.ADMIN_PASSWORD) {
+      return jsonResp(401, JSON.stringify({ error: '需要管理员密码' }));
+    }
+
+    try {
+      var cosPath2 = '/' + DATA_KEY + '?t=' + Date.now();
+      var resp2 = await cosRequest('GET', cosPath2);
+
+      if (resp2.statusCode === 404) {
+        return jsonResp(200, JSON.stringify({ orders: [] }));
+      }
+      if (resp2.statusCode !== 200) {
+        console.error('COS GET error:', resp2.statusCode, resp2.body);
+        return jsonResp(resp2.statusCode, JSON.stringify({ error: 'COS读取失败', detail: resp2.body }));
+      }
+
+      return jsonResp(200, resp2.body);
     } catch (e) {
       console.error('GET orders error:', e);
       return jsonResp(500, JSON.stringify({ error: e.message }));
@@ -174,16 +234,18 @@ exports.main_handler = async function (event, context) {
 
   // ===== PUT/POST /api/orders - 写入订单 =====
   if (apiPath === '/api/orders' && (method === 'PUT' || method === 'POST')) {
-    // 获取管理员密码
+    // 获取管理员密码（header名可能大小写不一）
     var adminPwd = '';
-    for (var k in headers) {
-      if (k.toLowerCase() === 'x-admin-password') {
-        adminPwd = headers[k];
-        break;
+    if (headers) {
+      for (var k in headers) {
+        if (k.toLowerCase() === 'x-admin-password') {
+          adminPwd = headers[k];
+          break;
+        }
       }
     }
 
-    if (!adminPwd || adminPwd !== process.env.ADMIN_PASSWORD) {
+    if (!adminPwd || !process.env.ADMIN_PASSWORD || adminPwd !== process.env.ADMIN_PASSWORD) {
       return jsonResp(401, JSON.stringify({ error: '密码错误，无写入权限' }));
     }
 
@@ -212,9 +274,11 @@ exports.main_handler = async function (event, context) {
 
   // ===== GET /api/verify - 验证密码 =====
   if (apiPath === '/api/verify' && method === 'GET') {
-    var pwd = queryParams.password || '';
-    var valid = pwd && pwd === process.env.ADMIN_PASSWORD;
-    return jsonResp(200, JSON.stringify({ valid: valid }));
+    // 函数URL的query参数在 event.queryString
+    var qs = event.queryString || event.queryStringParameters || {};
+    var pwd = qs.password || '';
+    var valid = pwd && process.env.ADMIN_PASSWORD && pwd === process.env.ADMIN_PASSWORD;
+    return jsonResp(200, JSON.stringify({ valid: !!valid }));
   }
 
   return jsonResp(404, JSON.stringify({ error: 'Not Found', path: path }));
