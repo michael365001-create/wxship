@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>物流自助查询</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --primary: #1a73e8;
+  --primary-light: #e8f0fe;
+  --success: #0d9488;
+  --success-light: #d1fae5;
+  --danger: #dc2626;
+  --danger-light: #fee2e2;
+  --warning: #f59e0b;
+  --warning-light: #fef3c7;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* 顶部品牌 */
+.brand-header {
+  text-align: center;
+  padding: 16px 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--gray-200);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+/* 查询区域 */
+.query-hero {
+  text-align: center;
+  padding: 48px 24px 32px;
+}
+.query-hero .hero-icon { font-size: 48px; margin-bottom: 12px; }
+.query-hero h1 { font-size: 22px; font-weight: 600; color: var(--gray-900); margin-bottom: 8px; }
+.query-hero p { font-size: 14px; color: var(--gray-500); }
+
+.container { max-width: 800px; margin: 0 auto; padding: 20px; }
+
+.query-box {
+  max-width: 400px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.form-group { margin-bottom: 16px; }
+.form-label { font-size: 14px; font-weight: 500; color: var(--gray-700); margin-bottom: 6px; display: block; }
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  transition: border-color 0.2s;
+  outline: none;
+  font-family: inherit;
+  -webkit-appearance: none;
+}
+.form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
+.form-input::placeholder { color: var(--gray-400); }
+.form-hint { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+
+.query-input-group { display: flex; gap: 8px; }
+.query-input-group .form-input { flex: 1; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+  -webkit-appearance: none;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: #1557b0; }
+
+.query-result { max-width: 600px; margin: 0 auto; }
+.result-card {
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  padding: 20px 24px;
+  margin-bottom: 12px;
+}
+.result-card .order-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.result-card .order-name { font-size: 16px; font-weight: 600; }
+.result-card .order-info { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 14px; }
+.result-card .info-label { color: var(--gray-500); font-weight: 400; }
+.result-card .info-value { color: var(--gray-800); }
+.result-card .track-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 8px 16px;
+  background: var(--primary);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.result-card .track-link:hover { background: #1557b0; }
+
+.status-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.status-pending { background: var(--warning-light); color: var(--warning); }
+.status-shipped { background: var(--primary-light); color: var(--primary); }
+.status-delivered { background: var(--success-light); color: var(--success); }
+.status-problem { background: var(--danger-light); color: var(--danger); }
+
+.empty-state { text-align: center; padding: 40px 20px; color: var(--gray-400); }
+.empty-state .empty-icon { font-size: 36px; margin-bottom: 8px; }
+.empty-state p { font-size: 14px; }
+
+.toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 999;
+  animation: slideDown 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.toast-success { background: var(--success); color: #fff; }
+.toast-error { background: var(--danger); color: #fff; }
+.toast-info { background: var(--primary); color: #fff; }
+@keyframes slideDown {
+  from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+  to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+.footer-note {
+  text-align: center;
+  padding: 24px 20px;
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+@media (max-width: 600px) {
+  .query-hero h1 { font-size: 18px; }
+  .query-hero { padding: 32px 16px 20px; }
+}
+</style>
+</head>
+<body>
+
+<div class="brand-header">📦 物流自助查询</div>
+
+<div class="container">
+  <div class="query-hero">
+    <div class="hero-icon">📦</div>
+    <h1>输入手机后4位尾号，查询您的快递</h1>
+    <p>每位客户只能查看自己的物流信息，安全保密</p>
+  </div>
+
+  <div class="query-box">
+    <div class="form-group">
+      <label class="form-label">手机后4位尾号</label>
+      <div class="query-input-group">
+        <input type="tel" id="queryPhone" class="form-input" placeholder="请输入手机号后4位，如 1234" maxlength="4" inputmode="numeric" autocorrect="off" autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter')doQuery()" oninput="this.value=this.value.replace(/\D/g,'')" />
+        <button class="btn btn-primary" onclick="doQuery()">查询</button>
+      </div>
+      <div class="form-hint">只需输入手机号最后4位即可查询，更方便更安全</div>
+    </div>
+  </div>
+
+  <div id="queryResult" class="query-result"></div>
+
+  <div class="footer-note">如有疑问请联系卖家 · 安全加密查询</div>
+</div>
+
+<script>
+// ========= 数据层（通过 Cloudflare Worker 安全代理）=========
+const API_URL = 'https://1319668533-4nvz9e3q5b.ap-guangzhou.tencentscf.com/api/orders';
+let orders = [];
+let loadError = null;
+
+async function loadData() {
+  loadError = null;
+  try {
+    const resp = await fetch(API_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (resp.ok) {
+      const data = await resp.json();
+      orders = data.orders || [];
+    } else {
+      orders = [];
+      loadError = '服务器返回错误(' + resp.status + ')';
+    }
+  } catch(e) {
+    orders = [];
+    loadError = '网络连接失败：' + e.message;
+  }
+}
+
+// 页面加载时预取数据
+loadData();
+
+// ========= 查询逻辑 =========
+function doQuery() {
+  var rawVal = document.getElementById('queryPhone').value;
+  var tail4 = rawVal.replace(/\D/g, '');
+  if (!tail4) { toast('请输入手机后4位尾号', 'error'); return; }
+  if (tail4.length !== 4) { toast('请输入手机号最后4位数字', 'error'); return; }
+
+  loadData().then(function() {
+    var resultDiv = document.getElementById('queryResult');
+
+    // 如果数据加载失败，显示错误信息
+    if (loadError) {
+      resultDiv.innerHTML = '<div class="empty-state" style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:32px;">' +
+        '<div class="empty-icon">⚠️</div>' +
+        '<p style="font-size:15px;color:var(--danger);">数据加载失败</p>' +
+        '<p style="font-size:13px;color:var(--gray-400);margin-top:4px;">' + loadError + '</p>' +
+        '<p style="font-size:13px;color:var(--gray-400);margin-top:4px;">请检查网络后重试</p>' +
+        '</div>';
+      return;
+    }
+
+    // 如果没有数据
+    if (orders.length === 0) {
+      resultDiv.innerHTML = '<div class="empty-state" style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:32px;">' +
+        '<div class="empty-icon">📦</div>' +
+        '<p style="font-size:15px;color:var(--gray-500);">暂无订单数据</p>' +
+        '</div>';
+      return;
+    }
+
+    var results = orders.filter(function(o) {
+      return o.phone && String(o.phone).slice(-4) === tail4;
+    });
+
+    if (results.length === 0) {
+      resultDiv.innerHTML = '<div class="empty-state" style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:32px;">' +
+        '<div class="empty-icon">🔍</div>' +
+        '<p style="font-size:15px;color:var(--gray-500);">未找到与尾号 ' + tail4 + ' 匹配的订单</p>' +
+        '<p style="font-size:13px;color:var(--gray-400);margin-top:4px;">请确认输入的是下单时手机号的最后4位</p>' +
+        '</div>';
+      return;
+    }
+
+    var statusLabel = { pending: '待发货', shipped: '已发货', delivered: '已签收', problem: '问题件' };
+    var statusClass = { pending: 'status-pending', shipped: 'status-shipped', delivered: 'status-delivered', problem: 'status-problem' };
+
+    var hasMultiplePhones = new Set(results.map(function(o) { return o.phone; })).size > 1;
+
+    resultDiv.innerHTML = results.map(function(o) {
+      var trackLink = '';
+      if (o.trackNo) {
+        trackLink = 'https://www.kuaidi100.com/chaxun?nu=' + o.trackNo;
+      }
+      var nameDisplay = hasMultiplePhones
+        ? o.name + '（尾号' + o.phone.slice(-4) + '）'
+        : o.name;
+      var productDisplay = o.product ? o.product : '';
+      var html = '<div class="result-card">' +
+        '<div class="order-header">' +
+          '<div class="order-name">' + nameDisplay + ' 的订单' + (productDisplay ? ' · ' + productDisplay : '') + '</div>' +
+          '<span class="status-tag ' + statusClass[o.status] + '">' + statusLabel[o.status] + '</span>' +
+        '</div>' +
+        '<div class="order-info">' +
+          '<span class="info-label">快递单号：</span>' +
+          '<span class="info-value">' + (o.trackNo || '暂无') + '</span>';
+      if (productDisplay) {
+        html += '<span class="info-label">产品名称：</span><span class="info-value">' + productDisplay + '</span>';
+      }
+      html += '</div>';
+      if (trackLink) {
+        html += '<a href="' + trackLink + '" target="_blank" class="track-link">查看实时物流轨迹 →</a>';
+      }
+      html += '</div>';
+      return html;
+    }).join('');
+  });
+}
+
+// ========= Toast提示 =========
+function toast(msg, type) {
+  var el = document.createElement('div');
+  el.className = 'toast toast-' + (type || 'info');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(function() { el.remove(); }, 2500);
+}
+</script>
+</body>
+</html>

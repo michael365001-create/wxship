@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发货管理后台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --primary: #1a73e8;
+  --primary-light: #e8f0fe;
+  --success: #0d9488;
+  --success-light: #d1fae5;
+  --danger: #dc2626;
+  --danger-light: #fee2e2;
+  --warning: #f59e0b;
+  --warning-light: #fef3c7;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* 密码锁屏 */
+.lock-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray-50);
+}
+.lock-box {
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  padding: 32px;
+  text-align: center;
+  max-width: 360px;
+  width: 100%;
+}
+.lock-box h2 { font-size: 18px; margin-bottom: 8px; }
+.lock-box p { font-size: 13px; color: var(--gray-500); margin-bottom: 20px; }
+
+/* 顶部导航 */
+.nav {
+  background: #fff;
+  border-bottom: 1px solid var(--gray-200);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; color: var(--gray-900); }
+.nav-brand .icon { font-size: 24px; }
+.nav-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--gray-100);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+.nav-tab {
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  background: transparent;
+  color: var(--gray-600);
+}
+.nav-tab:hover { background: var(--gray-200); }
+.nav-tab.active { background: #fff; color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.nav-pwd {
+  font-size: 12px;
+  color: var(--gray-400);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--gray-200);
+  background: #fff;
+}
+.nav-pwd:hover { background: var(--gray-50); }
+
+/* 主容器 */
+.container { max-width: 800px; margin: 0 auto; padding: 20px; }
+
+/* 卡片 */
+.card {
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-title .badge { font-size: 12px; padding: 2px 8px; border-radius: 4px; font-weight: 400; }
+.badge-blue { background: var(--primary-light); color: var(--primary); }
+.badge-green { background: var(--success-light); color: var(--success); }
+.badge-warning { background: var(--warning-light); color: var(--warning); }
+
+/* 统计 */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.stat-item { background: var(--gray-50); border-radius: var(--radius-sm); padding: 16px; text-align: center; }
+.stat-label { font-size: 12px; color: var(--gray-500); margin-bottom: 4px; }
+.stat-value { font-size: 24px; font-weight: 600; color: var(--gray-900); }
+
+/* 表单 */
+.form-group { margin-bottom: 16px; }
+.form-label { font-size: 14px; font-weight: 500; color: var(--gray-700); margin-bottom: 6px; display: block; }
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  transition: border-color 0.2s;
+  outline: none;
+  font-family: inherit;
+}
+.form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,115,232,0.1); }
+.form-input::placeholder { color: var(--gray-400); }
+textarea.form-input { resize: vertical; min-height: 80px; }
+select.form-input { cursor: pointer; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-hint { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
+
+/* 按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: #1557b0; }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { background: #0a7a70; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: #b91c1c; }
+.btn-outline { background: #fff; color: var(--gray-700); border: 1px solid var(--gray-300); }
+.btn-outline:hover { background: var(--gray-50); }
+.btn-warning { background: var(--warning); color: #fff; }
+.btn-warning:hover { background: #d97706; }
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+.btn-block { width: 100%; }
+
+/* 表格 */
+.table-wrap { overflow-x: auto; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { background: var(--gray-50); padding: 10px 12px; font-weight: 500; color: var(--gray-600); text-align: left; border-bottom: 1px solid var(--gray-200); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--gray-100); color: var(--gray-700); }
+tr:hover td { background: var(--gray-50); }
+
+.status-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.status-pending { background: var(--warning-light); color: var(--warning); }
+.status-shipped { background: var(--primary-light); color: var(--primary); }
+.status-delivered { background: var(--success-light); color: var(--success); }
+.status-problem { background: var(--danger-light); color: var(--danger); }
+
+/* 查询页面 */
+.query-hero { text-align: center; padding: 48px 24px 32px; }
+.query-hero .hero-icon { font-size: 48px; margin-bottom: 12px; }
+.query-hero h1 { font-size: 22px; font-weight: 600; color: var(--gray-900); margin-bottom: 8px; }
+.query-hero p { font-size: 14px; color: var(--gray-500); }
+.query-box { max-width: 400px; margin: 0 auto; background: #fff; border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 24px; margin-bottom: 24px; }
+.query-input-group { display: flex; gap: 8px; }
+.query-input-group .form-input { flex: 1; }
+.query-result { max-width: 600px; margin: 0 auto; }
+.result-card { background: #fff; border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 20px 24px; margin-bottom: 12px; }
+.result-card .order-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.result-card .order-name { font-size: 16px; font-weight: 600; }
+.result-card .order-info { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 14px; }
+.result-card .info-label { color: var(--gray-500); font-weight: 400; }
+.result-card .info-value { color: var(--gray-800); }
+.result-card .track-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 8px 16px;
+  background: var(--primary);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.result-card .track-link:hover { background: #1557b0; }
+
+/* 空状态 */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--gray-400); }
+.empty-state .empty-icon { font-size: 36px; margin-bottom: 8px; }
+.empty-state p { font-size: 14px; }
+
+/* 模态框 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal { background: #fff; border-radius: var(--radius); padding: 24px; max-width: 400px; width: 100%; }
+.modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+.modal .btn-group { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+/* 批量导入 */
+.import-area { background: var(--gray-50); border-radius: var(--radius-sm); padding: 16px; margin-bottom: 16px; border: 1px dashed var(--gray-300); }
+.import-area .format-example { font-size: 12px; color: var(--gray-400); margin-top: 8px; background: var(--gray-100); padding: 8px; border-radius: 4px; white-space: pre; font-family: monospace; }
+
+/* 分享链接 */
+.share-section { background: var(--primary-light); border-radius: var(--radius-sm); padding: 16px; margin-top: 16px; }
+.share-link-box { display: flex; gap: 8px; margin-top: 8px; }
+.share-link-box .form-input { background: #fff; font-size: 13px; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 999;
+  animation: slideDown 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.toast-success { background: var(--success); color: #fff; }
+.toast-error { background: var(--danger); color: #fff; }
+.toast-info { background: var(--primary); color: #fff; }
+.toast-warning { background: var(--warning); color: #fff; }
+@keyframes slideDown {
+  from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+  to { transform: translateX(-50%) translateY(0); opacity: 1; }
+}
+
+@media (max-width: 600px) {
+  .form-row { grid-template-columns: 1fr; }
+  .nav { flex-wrap: wrap; gap: 8px; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .query-hero h1 { font-size: 18px; }
+}
+</style>
+</head>
+<body>
+
+<!-- 管理密码锁屏 -->
+<div id="lockScreen" class="lock-screen" style="display:none;">
+  <div class="lock-box">
+    <div style="font-size:36px;margin-bottom:12px;">🔒</div>
+    <h2>管理员验证</h2>
+    <p>请输入管理密码才能进入后台</p>
+    <div class="form-group">
+      <input type="password" id="lockPwdInput" class="form-input" placeholder="输入密码" onkeydown="if(event.key==='Enter')unlockAdmin()" />
+    </div>
+    <button class="btn btn-primary btn-block" onclick="unlockAdmin()">进入后台</button>
+  </div>
+</div>
+
+<!-- 顶部导航 -->
+<div id="mainNav" class="nav">
+  <div class="nav-brand">
+    <span class="icon">🔧</span>
+    <span>发货管理后台</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('query')" data-tab="query">查快递</button>
+    <button class="nav-tab" onclick="switchTab('admin')" data-tab="admin">管理后台</button>
+  </div>
+</div>
+
+<!-- 查快递页面 -->
+<div id="queryPage" class="container">
+  <div class="query-hero">
+    <div class="hero-icon">📦</div>
+    <h1>输入手机后4位尾号，查询您的快递</h1>
+    <p>每位客户只能查看自己的物流信息，安全保密</p>
+  </div>
+  <div class="query-box">
+    <div class="form-group">
+      <label class="form-label">手机后4位尾号</label>
+      <div class="query-input-group">
+        <input type="tel" id="queryPhone" class="form-input" placeholder="请输入手机号后4位，如 1234" maxlength="4" onkeydown="if(event.key==='Enter')doQuery()" />
+        <button class="btn btn-primary" onclick="doQuery()">查询</button>
+      </div>
+      <div class="form-hint">只需输入手机号最后4位即可查询，更方便更安全</div>
+    </div>
+  </div>
+  <div id="queryResult" class="query-result"></div>
+</div>
+
+<!-- 管理后台页面 -->
+<div id="adminPage" class="container" style="display:none;">
+
+  <!-- 统计概览 -->
+  <div class="stats" id="statsArea">
+    <div class="stat-item">
+      <div class="stat-label">总订单</div>
+      <div class="stat-value" id="statTotal">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">待发货</div>
+      <div class="stat-value" id="statPending">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">已发货</div>
+      <div class="stat-value" id="statShipped">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">已签收</div>
+      <div class="stat-value" id="statDelivered">0</div>
+    </div>
+  </div>
+
+  <!-- 云端同步状态 -->
+  <div id="syncStatus" class="card" style="padding:10px 16px;background:var(--gray-50);border:1px dashed var(--gray-300);">
+    <span id="syncIcon">⏳</span> <span id="syncText">正在连接腾讯云...</span>
+  </div>
+
+  <!-- 单条录入 -->
+  <div class="card">
+    <div class="card-title">📝 单条录入</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">手机号</label>
+        <input type="tel" id="addPhone" class="form-input" placeholder="客户手机号" maxlength="11" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">收件人</label>
+        <input type="text" id="addName" class="form-input" placeholder="收件人姓名" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">产品名称</label>
+        <input type="text" id="addProduct" class="form-input" placeholder="如：防晒霜、面膜套装" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">快递单号</label>
+        <input type="text" id="addTrackNo" class="form-input" placeholder="快递单号（可后补）" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">发货状态</label>
+      <select id="addStatus" class="form-input">
+        <option value="pending">待发货</option>
+        <option value="shipped">已发货</option>
+        <option value="delivered">已签收</option>
+        <option value="problem">问题件</option>
+      </select>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="addOrder()">添加订单</button>
+  </div>
+
+  <!-- 批量导入 -->
+  <div class="card">
+    <div class="card-title">📋 批量导入 <span class="badge badge-blue">姓名/手机/产品/单号</span></div>
+
+    <!-- 文件上传区域 -->
+    <div class="import-area" id="fileUploadArea" style="text-align:center;">
+      <div style="font-size:32px;margin-bottom:8px;">📂</div>
+      <p style="font-size:14px;font-weight:500;color:var(--gray-700);margin-bottom:6px;">上传 Excel / CSV 文件</p>
+      <p style="font-size:12px;color:var(--gray-400);margin-bottom:12px;">支持 .xlsx .xls .csv 格式，自动识别姓名、手机号、产品名称、快递单号列</p>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleFileUpload(this)" />
+      <button class="btn btn-success" onclick="document.getElementById('fileInput').click()">选择文件</button>
+      <div id="fileName" style="margin-top:8px;font-size:13px;color:var(--gray-500);"></div>
+    </div>
+
+    <!-- 文件预览区（上传后显示） -->
+    <div id="filePreviewArea" style="display:none;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:14px;font-weight:500;color:var(--gray-700);">📋 数据预览（前10行）</span>
+        <span class="badge badge-blue" id="previewCountBadge">0 条</span>
+      </div>
+      <div class="table-wrap" style="max-height:300px;overflow-y:auto;">
+        <table id="previewTable">
+          <thead id="previewHead"></thead>
+          <tbody id="previewBody"></tbody>
+        </table>
+      </div>
+      <div id="columnMapping" style="margin-top:12px;padding:12px;background:var(--gray-50);border-radius:var(--radius-sm);">
+        <p style="font-size:13px;font-weight:500;color:var(--gray-700);margin-bottom:8px;">🔧 列映射（如自动识别不准确，可手动调整）</p>
+        <div class="form-row" style="margin-bottom:8px;">
+          <div class="form-group">
+            <label class="form-label">姓名 → 对应列</label>
+            <select id="colName" class="form-input"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">手机号 → 对应列</label>
+            <select id="colPhone" class="form-input"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">产品名称 → 对应列（可选）</label>
+            <select id="colProduct" class="form-input"><option value="">-- 不导入 --</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">快递单号 → 对应列</label>
+            <select id="colTrackNo" class="form-input"></select>
+          </div>
+        </div>
+        <div class="form-row" style="margin-top:8px;">
+          <div class="form-group">
+            <label class="form-label">发货状态 → 对应列（可选）</label>
+            <select id="colStatus" class="form-input"><option value="">-- 不导入 --</option></select>
+          </div>
+          <div class="form-group" style="visibility:hidden;">
+            <!-- 占位保持布局 -->
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button class="btn btn-primary" onclick="confirmFileImport()" style="flex:1;">✅ 确认导入</button>
+        <button class="btn btn-outline" onclick="cancelFileImport()">取消</button>
+      </div>
+    </div>
+
+    <!-- 文本粘贴区域 -->
+    <div style="border-top:1px dashed var(--gray-300);margin-top:16px;padding-top:16px;">
+      <p style="font-size:13px;font-weight:500;color:var(--gray-500);margin-bottom:8px;">或者粘贴文本数据：</p>
+      <div class="import-area">
+        <div class="form-group">
+          <label class="form-label">粘贴数据（每行一条：姓名/手机号/快递单号/产品名称，用斜杠或逗号分隔）</label>
+          <textarea id="batchInput" class="form-input" rows="6" placeholder="每行一条订单，格式：姓名/手机号/快递单号/产品名称
+
+张三/13800001234/SF1234567890/防晒霜
+李四/13900005678/ZT9876543210/面膜套装
+
+也支持用逗号或Tab分隔：
+张三,13800001234,SF1234567890,防晒霜
+
+快递单号和产品名称可后补，先填姓名和手机也可以：
+张三/13800001234
+张三/13800001234/防晒霜"></textarea>
+        </div>
+        <button class="btn btn-success btn-block" onclick="batchImport()">批量导入</button>
+        <div class="format-example">示例格式（每行一条，用斜杠、逗号或Tab分隔）：
+张三/13800001234/SF1234567890/防晒霜
+李四/13900005678/ZT9876543210/面膜套装
+王五/13700001111/眼霜</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 订单列表 -->
+  <div class="card">
+    <div class="card-title">📦 订单列表 <span class="badge badge-green" id="orderCountBadge">0 条</span></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input type="text" id="searchInput" class="form-input" placeholder="搜索手机号/姓名/单号/产品" style="flex:1;" oninput="renderTable()" />
+      <button class="btn btn-outline btn-sm" onclick="exportData()">导出数据</button>
+      <button class="btn btn-danger btn-sm" onclick="clearAllData()">清空全部</button>
+    </div>
+    <div class="table-wrap">
+      <table id="orderTable">
+        <thead><tr><th>手机号</th><th>收件人</th><th>产品名称</th><th>快递单号</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="orderTbody"></tbody>
+      </table>
+    </div>
+    <div id="emptyOrders" class="empty-state" style="display:none;">
+      <div class="empty-icon">📭</div>
+      <p>暂无订单数据，请先录入或批量导入</p>
+    </div>
+  </div>
+
+  <!-- 分享链接 -->
+  <div class="card">
+    <div class="card-title">🔗 分享链接管理</div>
+    <div class="share-section" style="background:var(--success-light);margin-bottom:12px;">
+      <div style="font-size:14px;font-weight:500;color:var(--success);margin-bottom:6px;">发给客户的链接（只显示查询页）</div>
+      <p style="font-size:13px;color:var(--gray-500);">客户打开后只能看到查快递页面，看不到管理后台，两个网址完全不同</p>
+      <div class="share-link-box" style="margin-top:8px;">
+        <input type="text" id="shareLink" class="form-input" readonly />
+        <button class="btn btn-success btn-sm" onclick="copyShareLink()">复制客户链接</button>
+      </div>
+    </div>
+    <div class="share-section">
+      <div style="font-size:14px;font-weight:500;color:var(--primary);margin-bottom:6px;">你自己用的管理链接（当前页面）</div>
+      <p style="font-size:13px;color:var(--gray-500);">此链接与客户链接完全不同，请勿泄露给客户</p>
+      <div class="share-link-box" style="margin-top:8px;">
+        <input type="text" id="adminLink" class="form-input" readonly />
+        <button class="btn btn-primary btn-sm" onclick="copyAdminLink()">复制管理链接</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认模态框 -->
+<div id="deleteModal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <h3>确认删除？</h3>
+    <p style="font-size:14px;color:var(--gray-500);">删除后无法恢复，确认要删除这条订单吗？</p>
+    <div class="btn-group">
+      <button class="btn btn-outline" onclick="closeDeleteModal()">取消</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑订单模态框 -->
+<div id="editModal" class="modal-overlay" style="display:none;">
+  <div class="modal" style="max-width:480px;">
+    <h3>✏️ 编辑订单</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">收件人姓名</label>
+        <input type="text" id="editName" class="form-input" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">手机号</label>
+        <input type="tel" id="editPhone" class="form-input" maxlength="11" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">产品名称</label>
+        <input type="text" id="editProduct" class="form-input" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">快递单号</label>
+        <input type="text" id="editTrackNo" class="form-input" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">发货状态</label>
+      <select id="editStatus" class="form-input">
+        <option value="pending">待发货</option>
+        <option value="shipped">已发货</option>
+        <option value="delivered">已签收</option>
+        <option value="problem">问题件</option>
+      </select>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-outline" onclick="closeEditModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveEdit()">保存修改</button>
+    </div>
+  </div>
+</div>
+
+<!-- 清空确认模态框 -->
+<div id="clearModal" class="modal-overlay" style="display:none;">
+  <div class="modal">
+    <h3>⚠️ 清空全部数据？</h3>
+    <p style="font-size:14px;color:var(--gray-500);">所有订单数据将被永久删除，此操作不可恢复！</p>
+    <div class="btn-group">
+      <button class="btn btn-outline" onclick="closeClearModal()">取消</button>
+      <button class="btn btn-danger" onclick="confirmClear()">确认清空</button>
+    </div>
+  </div>
+</div>
+
+<!-- SheetJS（解析Excel/CSV文件） -->
+<script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+
+<script>
+// ========= 数据层（通过 Cloudflare Worker 安全代理）=========
+const API_URL = 'https://1319668533-4nvz9e3q5b.ap-guangzhou.tencentscf.com/api/orders';
+const PWD_KEY = 'shipping_admin_pwd';
+let orders = [];
+let deleteTargetId = null;
+let adminVerified = false;
+let sessionPwd = ''; // 当前会话的管理员密码
+
+async function loadData() {
+  try {
+    const resp = await fetch(API_URL + '?t=' + Date.now(), { headers: { 'Accept': 'application/json' } });
+    if (resp.ok) {
+      const data = await resp.json();
+      orders = data.orders || [];
+    } else {
+      orders = [];
+    }
+  } catch(e) {
+    try {
+      const raw = localStorage.getItem('shipping_orders');
+      orders = raw ? JSON.parse(raw) : [];
+    } catch(e2) { orders = []; }
+  }
+  try { localStorage.setItem('shipping_orders', JSON.stringify(orders)); } catch(e) {}
+}
+
+async function saveData() {
+  try { localStorage.setItem('shipping_orders', JSON.stringify(orders)); } catch(e) {}
+  try {
+    document.getElementById('syncIcon').textContent = '🔄';
+    document.getElementById('syncText').textContent = '正在同步到云端...';
+    const resp = await fetch(API_URL, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Password': sessionPwd
+      },
+      body: JSON.stringify({ orders })
+    });
+    if (resp.ok) {
+      document.getElementById('syncIcon').textContent = '✅';
+      document.getElementById('syncText').textContent = '云端同步成功（所有设备可查询）';
+      document.getElementById('syncStatus').style.borderColor = 'var(--success)';
+      document.getElementById('syncStatus').style.background = 'var(--success-light)';
+    } else {
+      const errData = await resp.json().catch(() => ({}));
+      console.error('同步失败:', errData);
+      document.getElementById('syncIcon').textContent = '⚠️';
+      document.getElementById('syncText').textContent = '云端同步失败：' + (errData.error || '网络错误');
+      document.getElementById('syncStatus').style.borderColor = 'var(--warning)';
+      document.getElementById('syncStatus').style.background = 'var(--warning-light)';
+    }
+  } catch(e) {
+    console.error('同步异常:', e);
+    document.getElementById('syncIcon').textContent = '⚠️';
+    document.getElementById('syncText').textContent = '网络异常，数据仅保存在本机';
+    document.getElementById('syncStatus').style.borderColor = 'var(--warning)';
+    document.getElementById('syncStatus').style.background = 'var(--warning-light)';
+  }
+  refreshStats();
+  renderTable();
+}
+
+// ========= 初始化 =========
+loadData().then(() => {
+  if (orders.length > 0 || navigator.onLine) {
+    document.getElementById('syncIcon').textContent = '✅';
+    document.getElementById('syncText').textContent = `云端已连接（共 ${orders.length} 条数据）`;
+    document.getElementById('syncStatus').style.borderColor = 'var(--success)';
+    document.getElementById('syncStatus').style.background = 'var(--success-light)';
+  }
+
+  // 始终需要验证密码
+  if (!adminVerified) {
+    document.getElementById('lockScreen').style.display = 'flex';
+    document.getElementById('mainNav').style.display = 'none';
+    document.getElementById('queryPage').style.display = 'none';
+    document.getElementById('adminPage').style.display = 'none';
+    document.getElementById('lockPwdInput').focus();
+  } else {
+    refreshStats();
+    renderTable();
+    updateShareLink();
+    switchTab('query');
+  }
+});
+
+// ========= 导航切换 =========
+function switchTab(tab) {
+  if (tab === 'admin' && !adminVerified) {
+    document.getElementById('lockScreen').style.display = 'flex';
+    document.getElementById('mainNav').style.display = 'none';
+    document.getElementById('queryPage').style.display = 'none';
+    document.getElementById('adminPage').style.display = 'none';
+    document.getElementById('lockPwdInput').focus();
+    return;
+  }
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('queryPage').style.display = tab === 'query' ? 'block' : 'none';
+  document.getElementById('adminPage').style.display = tab === 'admin' ? 'block' : 'none';
+  if (tab === 'admin') { refreshStats(); renderTable(); }
+}
+
+// ========= 密码验证（通过Worker） =========
+async function unlockAdmin() {
+  const input = document.getElementById('lockPwdInput').value;
+  if (!input) { toast('请输入密码', 'error'); return; }
+
+  try {
+    const resp = await fetch('https://1319668533-4nvz9e3q5b.ap-guangzhou.tencentscf.com/api/verify?password=' + encodeURIComponent(input));
+    const data = await resp.json();
+    if (data.valid) {
+      sessionPwd = input;
+      adminVerified = true;
+      document.getElementById('lockScreen').style.display = 'none';
+      document.getElementById('mainNav').style.display = 'flex';
+      switchTab('admin');
+    } else {
+      toast('密码错误', 'error');
+      document.getElementById('lockPwdInput').value = '';
+      document.getElementById('lockPwdInput').focus();
+    }
+  } catch(e) {
+    toast('验证失败，请检查网络', 'error');
+  }
+}
+
+// ========= 去重工具函数 =========
+// 以快递单号为唯一标识：有单号→按单号去重；无单号（待发货）→按手机号去重
+function upsertOrder(phone, name, trackNo, product, status) {
+  let existing = null;
+
+  // 有快递单号时，以单号为唯一标识去重
+  if (trackNo) {
+    existing = orders.find(o => o.trackNo === trackNo);
+  }
+  // 无快递单号时（待发货），以手机号去重，避免同一个客户反复新增
+  if (!existing && !trackNo) {
+    existing = orders.find(o => o.phone === phone && !o.trackNo);
+  }
+
+  if (existing) {
+    // 更新已有订单
+    if (name) existing.name = name;
+    if (phone) existing.phone = phone;
+    if (trackNo) existing.trackNo = trackNo;
+    if (product) existing.product = product;
+    if (status === 'shipped' || status === 'delivered' || status === 'problem') {
+      existing.status = status;
+    } else if (trackNo && existing.status === 'pending') {
+      existing.status = 'shipped';
+    }
+    return 'updated';
+  } else {
+    orders.push({
+      id: Date.now() + Math.random(),
+      phone, name, trackNo, product, status,
+      createdAt: new Date().toISOString()
+    });
+    return 'added';
+  }
+}
+
+// ========= 单条添加 =========
+function addOrder() {
+  const phone = document.getElementById('addPhone').value.trim();
+  const name = document.getElementById('addName').value.trim();
+  const product = document.getElementById('addProduct').value.trim();
+  const trackNo = document.getElementById('addTrackNo').value.trim();
+  const status = document.getElementById('addStatus').value;
+
+  if (!phone || !name) { toast('手机号和收件人姓名必填', 'error'); return; }
+  if (phone.length !== 11) { toast('手机号必须是11位', 'error'); return; }
+
+  const result = upsertOrder(phone, name, trackNo, product, status);
+  saveData().then(() => {
+    toast(result === 'updated' ? '已有相同订单，已更新信息' : '订单添加成功', 'success');
+  });
+
+  document.getElementById('addPhone').value = '';
+  document.getElementById('addName').value = '';
+  document.getElementById('addProduct').value = '';
+  document.getElementById('addTrackNo').value = '';
+  document.getElementById('addStatus').value = 'pending';
+}
+
+// ========= 批量导入（文本粘贴）=========
+function batchImport() {
+  const text = document.getElementById('batchInput').value.trim();
+  if (!text) { toast('请粘贴数据', 'error'); return; }
+
+  const lines = text.split('\n').filter(l => l.trim());
+  let added = 0, updated = 0, errors = 0;
+
+  for (const line of lines) {
+    let parts = line.split(/\/|,|\t/).map(s => s.trim());
+    if (parts.length === 1) {
+      parts = line.trim().split(/\s+/);
+    }
+
+    let name = '', phone = '', trackNo = '', product = '';
+    if (parts.length >= 2) {
+      if (/^1[3-9]\d{9}$/.test(parts[0])) {
+        phone = parts[0];
+        name = parts[1];
+        // 第3段可能是单号或产品名，第4段是另一个
+        if (parts.length >= 4) {
+          trackNo = parts[2] || '';
+          product = parts[3] || '';
+        } else if (parts.length === 3) {
+          // 第3段：看起来像单号则当单号，否则当产品名
+          if (/^[A-Za-z0-9]{6,}$/.test(parts[2])) {
+            trackNo = parts[2];
+          } else {
+            product = parts[2];
+          }
+        }
+      } else {
+        name = parts[0];
+        phone = parts[1];
+        if (parts.length >= 4) {
+          trackNo = parts[2] || '';
+          product = parts[3] || '';
+        } else if (parts.length === 3) {
+          if (/^[A-Za-z0-9]{6,}$/.test(parts[2])) {
+            trackNo = parts[2];
+          } else {
+            product = parts[2];
+          }
+        }
+      }
+    } else {
+      errors++; continue;
+    }
+
+    if (!phone || phone.length !== 11) { errors++; continue; }
+    if (!name) { errors++; continue; }
+
+    const status = trackNo ? 'shipped' : 'pending';
+    const result = upsertOrder(phone, name, trackNo, product, status);
+    if (result === 'updated') updated++;
+    else added++;
+  }
+
+  const total = added + updated;
+  saveData().then(() => {
+    document.getElementById('batchInput').value = '';
+    if (total > 0) {
+      let msg = `成功处理 ${total} 条`;
+      if (updated > 0) msg += `（新增 ${added} 条，更新 ${updated} 条）`;
+      if (errors > 0) msg += `，${errors} 条格式有误已跳过`;
+      toast(msg, 'success');
+    } else toast('导入失败，请检查数据格式', 'error');
+  });
+}
+
+// ========= 批量导入（文件上传）=========
+let fileRows = [];  // 解析后的原始行数据
+let fileHeaders = [];  // 列头名称
+
+function handleFileUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  document.getElementById('fileName').textContent = `已选择: ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+      if (json.length === 0) { toast('文件中没有数据', 'error'); return; }
+
+      fileHeaders = Object.keys(json[0]);
+      fileRows = json;
+
+      // 智能识别列映射
+      autoMapColumns(fileHeaders);
+
+      // 显示预览
+      renderFilePreview(fileRows, fileHeaders);
+      document.getElementById('filePreviewArea').style.display = 'block';
+      document.getElementById('fileUploadArea').style.display = 'none';
+    } catch(err) {
+      console.error('文件解析失败:', err);
+      toast('文件解析失败，请检查文件格式', 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  input.value = '';
+}
+
+function autoMapColumns(headers) {
+  const nameKeywords = ['姓名', '名字', '收件人', '收件人姓名', 'name', '客户', '买家'];
+  const phoneKeywords = ['手机', '手机号', '电话', '联系方式', '收件人手机', 'phone', 'mobile', 'tel'];
+  const productKeywords = ['产品', '产品名称', '商品', '商品名称', '品名', '货品', '物品', 'product', 'item', '货物'];
+  const trackKeywords = ['快递单号', '快递号', '单号', '运单号', '物流单号', 'track', 'tracking', '快递', '运单'];
+  const statusKeywords = ['状态', '发货状态', '物流状态', 'status', '订单状态'];
+
+  function findMatch(kws) {
+    for (const kw of kws) {
+      const idx = headers.findIndex(h => h.toLowerCase().includes(kw.toLowerCase()));
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  }
+
+  const nameIdx = findMatch(nameKeywords);
+  const phoneIdx = findMatch(phoneKeywords);
+  const productIdx = findMatch(productKeywords);
+  const trackIdx = findMatch(trackKeywords);
+  const statusIdx = findMatch(statusKeywords);
+
+  // 填充下拉选项
+  fillColumnSelect('colName', headers, nameIdx >= 0 ? headers[nameIdx] : '');
+  fillColumnSelect('colPhone', headers, phoneIdx >= 0 ? headers[phoneIdx] : '');
+  fillColumnSelectWithEmpty('colProduct', headers, productIdx >= 0 ? headers[productIdx] : '');
+  fillColumnSelect('colTrackNo', headers, trackIdx >= 0 ? headers[trackIdx] : '');
+  fillColumnSelectWithEmpty('colStatus', headers, statusIdx >= 0 ? headers[statusIdx] : '');
+
+  // 如果没匹配到，尝试位置推断：第1列姓名，第2列手机，第3列单号，第4列产品
+  if (nameIdx < 0 && headers.length >= 1) document.getElementById('colName').value = headers[0];
+  if (phoneIdx < 0 && headers.length >= 2) document.getElementById('colPhone').value = headers[1];
+  if (trackIdx < 0 && headers.length >= 3) document.getElementById('colTrackNo').value = headers[2];
+  if (productIdx < 0 && headers.length >= 4) document.getElementById('colProduct').value = headers[3];
+}
+
+function fillColumnSelect(selectId, headers, selected) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = headers.map(h => `<option value="${h}">${h}</option>`).join('');
+  if (selected) sel.value = selected;
+}
+
+function fillColumnSelectWithEmpty(selectId, headers, selected) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = `<option value="">-- 不导入 --</option>` + headers.map(h => `<option value="${h}">${h}</option>`).join('');
+  if (selected) sel.value = selected;
+}
+
+function renderFilePreview(rows, headers) {
+  const previewRows = rows.slice(0, 10);
+  document.getElementById('previewCountBadge').textContent = `${rows.length} 条`;
+
+  document.getElementById('previewHead').innerHTML =
+    '<tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+  document.getElementById('previewBody').innerHTML =
+    previewRows.map(row =>
+      '<tr>' + headers.map(h => `<td>${row[h] || ''}</td>`).join('') + '</tr>'
+    ).join('');
+}
+
+function cancelFileImport() {
+  document.getElementById('filePreviewArea').style.display = 'none';
+  document.getElementById('fileUploadArea').style.display = 'block';
+  document.getElementById('fileName').textContent = '';
+  fileRows = [];
+  fileHeaders = [];
+}
+
+function confirmFileImport() {
+  if (fileRows.length === 0) { toast('没有数据可导入', 'error'); return; }
+
+  const nameCol = document.getElementById('colName').value;
+  const phoneCol = document.getElementById('colPhone').value;
+  const trackNoCol = document.getElementById('colTrackNo').value;
+  const productCol = document.getElementById('colProduct').value;
+  const statusCol = document.getElementById('colStatus').value;
+
+  if (!nameCol) { toast('请选择"姓名"对应的列', 'error'); return; }
+  if (!phoneCol) { toast('请选择"手机号"对应的列', 'error'); return; }
+
+  const statusMap = { '待发货': 'pending', '已发货': 'shipped', '已签收': 'delivered', '问题件': 'problem' };
+  let added = 0, updated = 0, errors = 0;
+
+  for (const row of fileRows) {
+    const name = String(row[nameCol] || '').trim();
+    const phone = String(row[phoneCol] || '').trim();
+    const trackNo = String(row[trackNoCol] || '').trim();
+    const product = productCol ? String(row[productCol] || '').trim() : '';
+    let status = 'pending';
+
+    if (statusCol && row[statusCol]) {
+      const sv = String(row[statusCol]).trim();
+      status = statusMap[sv] || (trackNo ? 'shipped' : 'pending');
+    } else {
+      status = trackNo ? 'shipped' : 'pending';
+    }
+
+    if (!name) { errors++; continue; }
+    if (!phone || phone.length !== 11) { errors++; continue; }
+
+    const result = upsertOrder(phone, name, trackNo, product, status);
+    if (result === 'updated') updated++;
+    else added++;
+  }
+
+  const total = added + updated;
+  saveData().then(() => {
+    cancelFileImport();
+    if (total > 0) {
+      let msg = `成功处理 ${total} 条`;
+      if (updated > 0) msg += `（新增 ${added} 条，更新 ${updated} 条）`;
+      if (errors > 0) msg += `，${errors} 条格式有误已跳过`;
+      toast(msg, 'success');
+    } else toast('导入失败，请检查列映射和数据格式', 'error');
+  });
+}
+
+// ========= 统计 =========
+function refreshStats() {
+  document.getElementById('statTotal').textContent = orders.length;
+  document.getElementById('statPending').textContent = orders.filter(o => o.status === 'pending').length;
+  document.getElementById('statShipped').textContent = orders.filter(o => o.status === 'shipped').length;
+  document.getElementById('statDelivered').textContent = orders.filter(o => o.status === 'delivered').length;
+}
+
+// ========= 订单表格 =========
+function renderTable() {
+  const search = document.getElementById('searchInput').value.trim().toLowerCase();
+  const filtered = orders.filter(o => {
+    if (!search) return true;
+    return o.phone.includes(search) || o.name.toLowerCase().includes(search) ||
+           (o.trackNo && o.trackNo.toLowerCase().includes(search)) ||
+           (o.product && o.product.toLowerCase().includes(search));
+  });
+
+  document.getElementById('orderCountBadge').textContent = `${filtered.length} 条`;
+
+  if (filtered.length === 0) {
+    document.getElementById('orderTable').style.display = 'none';
+    document.getElementById('emptyOrders').style.display = 'block';
+    return;
+  }
+  document.getElementById('orderTable').style.display = 'table';
+  document.getElementById('emptyOrders').style.display = 'none';
+
+  const statusLabel = { pending: '待发货', shipped: '已发货', delivered: '已签收', problem: '问题件' };
+  const statusClass = { pending: 'status-pending', shipped: 'status-shipped', delivered: 'status-delivered', problem: 'status-problem' };
+
+  document.getElementById('orderTbody').innerHTML = filtered.map(o => `
+    <tr>
+      <td>${maskPhone(o.phone)}</td>
+      <td>${o.name}</td>
+      <td>${o.product || '-'}</td>
+      <td>${o.trackNo || '-'}</td>
+      <td><span class="status-tag ${statusClass[o.status]}">${statusLabel[o.status]}</span></td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="openEditModal('${o.id}')">编辑</button>
+        <button class="btn btn-danger btn-sm" onclick="askDelete('${o.id}')">删除</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function maskPhone(phone) { return phone.length === 11 ? phone.slice(0,3) + '****' + phone.slice(7) : phone; }
+
+// ========= 编辑订单 =========
+let editTargetId = null;
+
+function openEditModal(id) {
+  const order = orders.find(o => String(o.id) === String(id));
+  if (!order) return;
+  editTargetId = id;
+
+  document.getElementById('editName').value = order.name || '';
+  document.getElementById('editPhone').value = order.phone || '';
+  document.getElementById('editProduct').value = order.product || '';
+  document.getElementById('editTrackNo').value = order.trackNo || '';
+  document.getElementById('editStatus').value = order.status || 'pending';
+
+  document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none';
+  editTargetId = null;
+}
+
+function saveEdit() {
+  if (!editTargetId) return;
+  const order = orders.find(o => String(o.id) === String(editTargetId));
+  if (!order) return;
+
+  const phone = document.getElementById('editPhone').value.trim();
+  const name = document.getElementById('editName').value.trim();
+
+  if (!phone || phone.length !== 11) { toast('手机号必须是11位', 'error'); return; }
+  if (!name) { toast('姓名不能为空', 'error'); return; }
+
+  order.phone = phone;
+  order.name = name;
+  order.product = document.getElementById('editProduct').value.trim();
+  order.trackNo = document.getElementById('editTrackNo').value.trim();
+  order.status = document.getElementById('editStatus').value;
+
+  saveData().then(() => {
+    closeEditModal();
+    toast('订单已更新', 'success');
+  });
+}
+
+// ========= 删除 =========
+function askDelete(id) { deleteTargetId = id; document.getElementById('deleteModal').style.display = 'flex'; }
+function closeDeleteModal() { document.getElementById('deleteModal').style.display = 'none'; deleteTargetId = null; }
+function confirmDelete() { orders = orders.filter(o => String(o.id) !== String(deleteTargetId)); saveData().then(() => { closeDeleteModal(); toast('已删除', 'success'); }); }
+
+// ========= 清空 =========
+function clearAllData() { document.getElementById('clearModal').style.display = 'flex'; }
+function closeClearModal() { document.getElementById('clearModal').style.display = 'none'; }
+function confirmClear() { orders = []; saveData().then(() => { closeClearModal(); toast('全部数据已清空', 'success'); }); }
+
+// ========= 导出 =========
+function exportData() {
+  if (orders.length === 0) { toast('暂无数据', 'error'); return; }
+  const statusLabel = { pending: '待发货', shipped: '已发货', delivered: '已签收', problem: '问题件' };
+  const header = '手机号\t收件人\t产品名称\t快递单号\t状态';
+  const rows = orders.map(o => `${o.phone}\t${o.name}\t${o.product||''}\t${o.trackNo||''}\t${statusLabel[o.status]}`);
+  const csv = header + '\n' + rows.join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `发货数据_${new Date().toLocaleDateString().replace(/\//g,'-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('数据已导出', 'success');
+}
+
+// ========= 查快递（管理员版）=========
+function doQuery() {
+  const tail4 = document.getElementById('queryPhone').value.trim();
+  if (!tail4) { toast('请输入手机后4位尾号', 'error'); return; }
+  if (tail4.length !== 4) { toast('请输入手机号最后4位数字', 'error'); return; }
+
+  const results = orders.filter(o => o.phone && o.phone.slice(-4) === tail4);
+  const resultDiv = document.getElementById('queryResult');
+
+  if (results.length === 0) {
+    resultDiv.innerHTML = `
+      <div class="empty-state" style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:32px;">
+        <div class="empty-icon">🔍</div>
+        <p style="font-size:15px;color:var(--gray-500);">未找到与该尾号匹配的订单</p>
+        <p style="font-size:13px;color:var(--gray-400);margin-top:4px;">请确认输入的是下单时手机号的最后4位</p>
+      </div>`;
+    return;
+  }
+
+  const statusLabel = { pending: '待发货', shipped: '已发货', delivered: '已签收', problem: '问题件' };
+  const statusClass = { pending: 'status-pending', shipped: 'status-shipped', delivered: 'status-delivered', problem: 'status-problem' };
+  const hasMultiplePhones = new Set(results.map(o => o.phone)).size > 1;
+
+  resultDiv.innerHTML = results.map(o => {
+    let trackLink = '';
+    if (o.trackNo) {
+      trackLink = `https://www.kuaidi100.com/chaxun?nu=${o.trackNo}`;
+    }
+    const nameDisplay = hasMultiplePhones ? `${o.name}（尾号${o.phone.slice(-4)}）` : o.name;
+    const productDisplay = o.product ? o.product : '';
+    return `
+      <div class="result-card">
+        <div class="order-header">
+          <div class="order-name">${nameDisplay} 的订单${productDisplay ? ` · ${productDisplay}` : ''}</div>
+          <span class="status-tag ${statusClass[o.status]}">${statusLabel[o.status]}</span>
+        </div>
+        <div class="order-info">
+          <span class="info-label">快递单号：</span><span class="info-value">${o.trackNo || '暂无'}</span>
+          ${productDisplay ? `<span class="info-label">产品名称：</span><span class="info-value">${productDisplay}</span>` : ''}
+        </div>
+        ${trackLink ? `<a href="${trackLink}" target="_blank" class="track-link">查看实时物流轨迹 →</a>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// ========= 分享链接 =========
+function updateShareLink() {
+  const host = window.location.origin;
+  document.getElementById('shareLink').value = host + '/index.html';
+  document.getElementById('adminLink').value = window.location.href;
+}
+
+function copyShareLink() {
+  const link = document.getElementById('shareLink').value;
+  navigator.clipboard.writeText(link).then(() => toast('客户链接已复制（客户只能查快递）', 'success')).catch(() => {
+    document.getElementById('shareLink').select();
+    document.execCommand('copy');
+    toast('客户链接已复制', 'success');
+  });
+}
+
+function copyAdminLink() {
+  const link = document.getElementById('adminLink').value;
+  navigator.clipboard.writeText(link).then(() => toast('管理链接已复制（请勿发给客户）', 'success')).catch(() => {
+    document.getElementById('adminLink').select();
+    document.execCommand('copy');
+    toast('管理链接已复制', 'success');
+  });
+}
+
+// ========= Toast ==========
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type || 'info'}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+</script>
+</body>
+</html>
