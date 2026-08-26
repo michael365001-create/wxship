@@ -996,12 +996,33 @@ function confirmFileImport() {
   if (!nameCol) { toast('请选择"姓名"对应的列', 'error'); return; }
   if (!phoneCol) { toast('请选择"手机号"对应的列', 'error'); return; }
 
+  // 清理手机号：去除空格、横线、括号、+号、国家代码86等
+  function cleanPhone(raw) {
+    if (!raw) return '';
+    let p = String(raw).trim();
+    // 去除所有非数字字符（空格、横线、括号、+号等）
+    p = p.replace(/\D/g, '');
+    // 去除可能的国家代码 86（中国）
+    if (p.startsWith('86') && p.length === 13) p = p.substring(2);
+    return p;
+  }
+
+  // 检查是否是11位有效手机号（1开头）
+  function isValidPhone(p) {
+    return p && p.length === 11 && p.startsWith('1');
+  }
+
   const statusMap = { '待发货': 'pending', '已发货': 'shipped', '已签收': 'delivered', '问题件': 'problem' };
   let added = 0, updated = 0, errors = 0;
+  const errorDetails = []; // 收集错误详情
+  const rowErrors = { noName: 0, badPhone: 0 };
 
-  for (const row of fileRows) {
+  for (let i = 0; i < fileRows.length; i++) {
+    const row = fileRows[i];
+    const rowNum = i + 2; // Excel行号（第1行是表头）
     const name = String(row[nameCol] || '').trim();
-    const phone = String(row[phoneCol] || '').trim();
+    const rawPhone = String(row[phoneCol] || '').trim();
+    const phone = cleanPhone(rawPhone);
     const trackNo = String(row[trackNoCol] || '').trim();
     const product = productCol ? String(row[productCol] || '').trim() : '';
     let status = 'pending';
@@ -1013,8 +1034,24 @@ function confirmFileImport() {
       status = trackNo ? 'shipped' : 'pending';
     }
 
-    if (!name) { errors++; continue; }
-    if (!phone || phone.length !== 11) { errors++; continue; }
+    if (!name) {
+      errors++;
+      rowErrors.noName++;
+      if (errorDetails.length < 3) errorDetails.push(`第${rowNum}行：姓名为空（原始："${rawPhone}"）`);
+      continue;
+    }
+    if (!phone) {
+      errors++;
+      rowErrors.badPhone++;
+      if (errorDetails.length < 3) errorDetails.push(`第${rowNum}行：手机号无法识别（"${rawPhone}"）`);
+      continue;
+    }
+    if (!isValidPhone(phone)) {
+      errors++;
+      rowErrors.badPhone++;
+      if (errorDetails.length < 3) errorDetails.push(`第${rowNum}行：手机号"${phone}"不是有效的11位手机号（原值："${rawPhone}"）`);
+      continue;
+    }
 
     const result = upsertOrder(phone, name, trackNo, product, status);
     if (result === 'updated') updated++;
@@ -1027,9 +1064,24 @@ function confirmFileImport() {
     if (total > 0) {
       let msg = `成功处理 ${total} 条`;
       if (updated > 0) msg += `（新增 ${added} 条，更新 ${updated} 条）`;
-      if (errors > 0) msg += `，${errors} 条格式有误已跳过`;
-      toast(msg, 'success');
-    } else toast('导入失败，请检查列映射和数据格式', 'error');
+      if (errors > 0) {
+        msg += `，${errors} 条格式有误已跳过`;
+        // 弹窗详细错误信息
+        if (errorDetails.length > 0) {
+          alert(`导入完成！\n\n成功：${total} 条（新增 ${added}，更新 ${updated}）\n跳过：${errors} 条\n\n问题示例（前3条）：\n${errorDetails.join('\n')}`);
+        } else {
+          toast(msg, 'success');
+        }
+      } else {
+        toast(msg, 'success');
+      }
+    } else {
+      // 全部失败，给出详细原因
+      let detail = '';
+      if (rowErrors.noName > 0) detail += `• ${rowErrors.noName} 条姓名列为空\n`;
+      if (rowErrors.badPhone > 0) detail += `• ${rowErrors.badPhone} 条手机号格式不对\n`;
+      alert(`导入失败，所有数据都被跳过。\n\n可能原因：\n${detail}\n示例：\n${errorDetails.slice(0, 5).join('\n') || '请检查列映射是否正确'}`);
+    }
   });
 }
 
