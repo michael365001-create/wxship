@@ -773,12 +773,15 @@ function upsertOrder(phone, name, trackNo, product, status) {
     } else if (trackNo && existing.status === 'pending') {
       existing.status = 'shipped';
     }
+    existing.updatedAt = new Date().toISOString(); // 标记最近更新，用于置顶排序
     return 'updated';
   } else {
+    const now = new Date().toISOString();
     orders.push({
       id: Date.now() + Math.random(),
       phone, name, trackNo, product, status,
-      createdAt: new Date().toISOString()
+      createdAt: now,
+      updatedAt: now
     });
     return 'added';
   }
@@ -1096,7 +1099,13 @@ function refreshStats() {
 // ========= 订单表格 =========
 function renderTable() {
   const search = document.getElementById('searchInput').value.trim().toLowerCase();
-  const filtered = orders.filter(o => {
+  // 最近导入/更新的订单排在最上面，方便检查和修改
+  const sorted = [...orders].sort((a, b) => {
+    const ta = a.updatedAt || a.createdAt || '';
+    const tb = b.updatedAt || b.createdAt || '';
+    return tb.localeCompare(ta);
+  });
+  const filtered = sorted.filter(o => {
     if (!search) return true;
     return o.phone.includes(search) || o.name.toLowerCase().includes(search) ||
            (o.trackNo && o.trackNo.toLowerCase().includes(search)) ||
