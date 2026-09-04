@@ -231,10 +231,15 @@ async function doQuery() {
   try {
     const resp = await fetch(API_BASE + '/api/query?phone=' + tail4 + '&t=' + Date.now(), { cache: 'no-store' });
     if (!resp.ok) {
+      var errIcon = resp.status === 429 ? '⏳' : '⚠️';
+      var errTitle = resp.status === 429 ? '查询太频繁' : '查询失败';
+      var errMsg = resp.status === 429
+        ? '请稍等1分钟后再试'
+        : '服务器返回错误(' + resp.status + ')，请稍后重试';
       resultDiv.innerHTML = '<div class="empty-state" style="background:#fff;border-radius:var(--radius);border:1px solid var(--gray-200);padding:32px;">' +
-        '<div class="empty-icon">⚠️</div>' +
-        '<p style="font-size:15px;color:var(--danger);">查询失败</p>' +
-        '<p style="font-size:13px;color:var(--gray-400);margin-top:4px;">服务器返回错误(' + resp.status + ')，请稍后重试</p>' +
+        '<div class="empty-icon">' + errIcon + '</div>' +
+        '<p style="font-size:15px;color:var(--danger);">' + errTitle + '</p>' +
+        '<p style="font-size:13px;color:var(--gray-400);margin-top:4px;">' + errMsg + '</p>' +
         '</div>';
       return;
     }

@@ -9,6 +9,10 @@
  * 3. PUT  /api/orders  → 写入订单数据到COS（需管理员密码）
  * 4. GET  /api/verify   → 验证管理员密码
  * 5. OPTIONS *          → CORS预检
+ *
+ * 安全特性：
+ * - /api/query 有频率限制：同一IP每分钟最多15次（防爬虫遍历尾号）
+ * - /api/orders 读取和写入均需管理员密码
  * 
  * 环境变量（在SCF控制台 → 函数管理 → 函数配置 中设置）：
  * - SECRET_ID      腾讯云 SecretId
@@ -126,6 +130,66 @@ function parseEvent(event) {
   return { method: method, path: path, headers: headers, body: body, isBase64: isBase64, queryParams: queryParams };
 }
 
+// ========= 频率限制（内存版）=========
+// 同一IP每分钟最多查询15次，防止爬虫遍历尾号
+const RATE_LIMIT_MAX = 15;      // 每分钟最多次数
+const RATE_LIMIT_WINDOW = 60000; // 时间窗口：60秒（毫秒）
+const rateLimitMap = new Map(); // ip -> [时间戳数组]
+
+function checkRateLimit(ip) {
+  var now = Date.now();
+  if (!rateLimitMap.has(ip)) {
+    rateLimitMap.set(ip, []);
+  }
+  var timestamps = rateLimitMap.get(ip);
+
+  // 清理60秒之前的记录
+  while (timestamps.length > 0 && now - timestamps[0] > RATE_LIMIT_WINDOW) {
+    timestamps.shift();
+  }
+
+  // 超过限制
+  if (timestamps.length >= RATE_LIMIT_MAX) {
+    return false;
+  }
+
+  timestamps.push(now);
+
+  // 定期清理不活跃的IP，防止内存无限增长
+  if (rateLimitMap.size > 5000) {
+    var keysToDelete = [];
+    rateLimitMap.forEach(function (ts, key) {
+      var valid = ts.filter(function (t) { return now - t <= RATE_LIMIT_WINDOW; });
+      if (valid.length === 0) keysToDelete.push(key);
+    });
+    for (var i = 0; i < keysToDelete.length; i++) {
+      rateLimitMap.delete(keysToDelete[i]);
+    }
+  }
+
+  return true;
+}
+
+// 获取客户端真实IP
+function getClientIp(event, headers) {
+  // 函数URL格式：requestContext.http.sourceIp
+  if (event.requestContext && event.requestContext.http && event.requestContext.http.sourceIp) {
+    return event.requestContext.http.sourceIp;
+  }
+  // 尝试常见代理头
+  if (headers) {
+    var keys = ['x-forwarded-for', 'x-real-ip', 'x-client-ip'];
+    for (var i = 0; i < keys.length; i++) {
+      for (var hk in headers) {
+        if (hk.toLowerCase() === keys[i] && headers[hk]) {
+          return String(headers[hk]).split(',')[0].trim();
+        }
+      }
+    }
+  }
+  return 'unknown';
+}
+
 // ========= 主处理函数 =========
 exports.main_handler = async function (event, context) {
   var parsed = parseEvent(event);
@@ -155,6 +219,12 @@ exports.main_handler = async function (event, context) {
 
   // ===== GET /api/query - 客户安全查询（只返回匹配的订单，不暴露全部数据）=====
   if (apiPath === '/api/query' && method === 'GET') {
+    // 频率限制：同一IP每分钟最多15次
+    var clientIp = getClientIp(event, headers);
+    if (!checkRateLimit(clientIp)) {
+      return jsonResp(429, JSON.stringify({ error: '查询太频繁，请1分钟后再试' }));
+    }
+
     var qs = event.queryString || event.queryStringParameters || {};
     var tail4 = (qs.phone || '').replace(/\D/g, '');
 
