@@ -156,11 +156,12 @@ function mergeOrders(base, incoming, deletes, clearAll) {
 
   var result = [];
   var keyMap = {};
+  var deletedCount = 0;
 
   // 1. 以云端数据为基准（先剔除被删除的记录）
   for (var i = 0; i < base.length; i++) {
     var bo = base[i];
-    if (delIds[String(bo.id)] || (bo.trackNo && delNos[String(bo.trackNo)])) continue;
+    if (delIds[String(bo.id)] || (bo.trackNo && delNos[String(bo.trackNo)])) { deletedCount++; continue; }
     var bk = orderKey(bo);
     result.push(bo);
     if (!keyMap[bk]) keyMap[bk] = bo;
@@ -204,7 +205,7 @@ function mergeOrders(base, incoming, deletes, clearAll) {
     }
   }
 
-  return { orders: result, added: added, updated: updated };
+  return { orders: result, added: added, updated: updated, deleted: deletedCount };
 }
 
 // ========= 频率限制（内存版）=========

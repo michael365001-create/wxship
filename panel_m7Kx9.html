@@ -683,9 +683,11 @@ async function doSave(options) {
         try { localStorage.setItem('shipping_orders', JSON.stringify(orders)); } catch(e) {}
         const st = data.stats || {};
         let extra = '';
-        if (st.added || st.updated || st.deleted) {
-          extra = `（新增${st.added||0} 更新${st.updated||0} 删除${st.deleted||0}）`;
-        }
+        const parts = [];
+        if (st.added) parts.push(`新增${st.added}`);
+        if (st.updated) parts.push(`更新${st.updated}`);
+        if (st.deleted) parts.push(`删除${st.deleted}`);
+        if (parts.length) extra = `（${parts.join(' ')}）`;
         if (cloudCount > before && !st.added) {
           extra = `（已合并其他设备的数据）`;
         }
