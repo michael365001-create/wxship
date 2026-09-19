@@ -607,6 +607,9 @@ let orders = [];
 let deleteTargetId = null;
 let adminVerified = false;
 let sessionPwd = ''; // 当前会话的管理员密码
+let pendingDeletes = []; // 待同步的删除标识（id 或 快递单号），防止被云端合并回来
+let lastSavePromise = Promise.resolve(); // 保证多次保存按顺序执行，避免并发覆盖
+let syncDirty = false; // 本地存在未成功同步到云端的改动
 
 async function loadData() {
   // 先尝试从localStorage恢复（离线备用）
@@ -644,38 +647,76 @@ async function loadData() {
   }
 }
 
-async function saveData() {
+async function saveData(options) {
+  options = options || {};
+  // 串行化：等上一次保存完成再开始，避免并发写入互相覆盖
+  const run = lastSavePromise.then(() => doSave(options)).catch(() => {});
+  lastSavePromise = run;
+  return run;
+}
+
+async function doSave(options) {
   try { localStorage.setItem('shipping_orders', JSON.stringify(orders)); } catch(e) {}
   try {
     document.getElementById('syncIcon').textContent = '🔄';
     document.getElementById('syncText').textContent = '正在同步到云端...';
+    const payload = {
+      orders: orders,
+      deletes: pendingDeletes,
+      clearAll: options.clearAll === true
+    };
     const resp = await fetch(API_URL, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'X-Admin-Password': sessionPwd
       },
-      body: JSON.stringify({ orders })
+      body: JSON.stringify(payload)
     });
     if (resp.ok) {
-      document.getElementById('syncIcon').textContent = '✅';
-      document.getElementById('syncText').textContent = '云端同步成功（所有设备可查询）';
+      const data = await resp.json().catch(() => ({}));
+      // 采用云端合并后的结果（可能包含其他设备新增的数据）
+      if (Array.isArray(data.orders)) {
+        const cloudCount = data.orders.length;
+        const before = orders.length;
+        orders = data.orders;
+        try { localStorage.setItem('shipping_orders', JSON.stringify(orders)); } catch(e) {}
+        const st = data.stats || {};
+        let extra = '';
+        if (st.added || st.updated || st.deleted) {
+          extra = `（新增${st.added||0} 更新${st.updated||0} 删除${st.deleted||0}）`;
+        }
+        if (cloudCount > before && !st.added) {
+          extra = `（已合并其他设备的数据）`;
+        }
+        document.getElementById('syncIcon').textContent = '✅';
+        document.getElementById('syncText').textContent = `云端同步成功，共 ${cloudCount} 条${extra}`;
+      } else {
+        document.getElementById('syncIcon').textContent = '✅';
+        document.getElementById('syncText').textContent = '云端同步成功（所有设备可查询）';
+      }
+      pendingDeletes = [];
+      syncDirty = false;
       document.getElementById('syncStatus').style.borderColor = 'var(--success)';
       document.getElementById('syncStatus').style.background = 'var(--success-light)';
     } else {
       const errData = await resp.json().catch(() => ({}));
       console.error('同步失败:', errData);
+      syncDirty = true;
       document.getElementById('syncIcon').textContent = '⚠️';
       document.getElementById('syncText').textContent = '云端同步失败：' + (errData.error || '网络错误');
       document.getElementById('syncStatus').style.borderColor = 'var(--warning)';
       document.getElementById('syncStatus').style.background = 'var(--warning-light)';
+      alert('保存到云端失败：' + (errData.error || '网络错误') + '\n\n数据仍保存在本机，请检查网络后重新保存一次。');
     }
   } catch(e) {
     console.error('同步异常:', e);
+    syncDirty = true;
     document.getElementById('syncIcon').textContent = '⚠️';
     document.getElementById('syncText').textContent = '网络异常，数据仅保存在本机';
     document.getElementById('syncStatus').style.borderColor = 'var(--warning)';
     document.getElementById('syncStatus').style.background = 'var(--warning-light)';
+    alert('保存到云端失败（网络异常）。\n\n数据仍保存在本机，联网后请重新保存一次。');
   }
   refreshStats();
   renderTable();
@@ -705,7 +746,28 @@ function switchTab(tab) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.getElementById('queryPage').style.display = tab === 'query' ? 'block' : 'none';
   document.getElementById('adminPage').style.display = tab === 'admin' ? 'block' : 'none';
-  if (tab === 'admin') { refreshStats(); renderTable(); }
+  if (tab === 'admin') { refreshStats(); renderTable(); refreshFromCloud(); }
+}
+
+// ========= 主动从云端拉取最新数据（多设备协同）=========
+async function refreshFromCloud() {
+  if (!sessionPwd || syncDirty) return; // 本地有未同步成功的改动时不动，避免覆盖
+  try {
+    const resp = await fetch(API_URL + '?t=' + Date.now(), {
+      headers: { 'Accept': 'application/json', 'X-Admin-Password': sessionPwd },
+      cache: 'no-store'
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (!Array.isArray(data.orders)) return;
+    if (data.orders.length !== orders.length) {
+      orders = data.orders;
+      try { localStorage.setItem('shipping_orders', JSON.stringify(orders)); } catch(e) {}
+      refreshStats();
+      renderTable();
+      document.getElementById('syncText').textContent = `已同步云端最新数据，共 ${orders.length} 条`;
+    }
+  } catch(e) { /* 网络异常时静默忽略 */ }
 }
 
 // ========= 密码验证（通过SCF后端）=========
@@ -1190,12 +1252,26 @@ function saveEdit() {
 // ========= 删除 =========
 function askDelete(id) { deleteTargetId = id; document.getElementById('deleteModal').style.display = 'flex'; }
 function closeDeleteModal() { document.getElementById('deleteModal').style.display = 'none'; deleteTargetId = null; }
-function confirmDelete() { orders = orders.filter(o => String(o.id) !== String(deleteTargetId)); saveData().then(() => { closeDeleteModal(); toast('已删除', 'success'); }); }
+function confirmDelete() {
+  const target = orders.find(o => String(o.id) === String(deleteTargetId));
+  if (target) {
+    // 记录删除标识，提交给云端一并删除（否则云端合并时又会把它带回来）
+    if (target.id !== undefined) pendingDeletes.push(target.id);
+    if (target.trackNo) pendingDeletes.push(target.trackNo);
+  }
+  orders = orders.filter(o => String(o.id) !== String(deleteTargetId));
+  saveData().then(() => { closeDeleteModal(); toast('已删除', 'success'); });
+}
 
 // ========= 清空 =========
 function clearAllData() { document.getElementById('clearModal').style.display = 'flex'; }
 function closeClearModal() { document.getElementById('clearModal').style.display = 'none'; }
-function confirmClear() { orders = []; saveData().then(() => { closeClearModal(); toast('全部数据已清空', 'success'); }); }
+function confirmClear() {
+  if (!confirm('确定要清空全部数据吗？此操作会把云端所有订单一并删除，且无法恢复！')) return;
+  orders = [];
+  pendingDeletes = [];
+  saveData({ clearAll: true }).then(() => { closeClearModal(); toast('全部数据已清空', 'success'); });
+}
 
 // ========= 导出 =========
 function exportData() {

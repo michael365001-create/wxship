@@ -6,7 +6,9 @@
  * 功能：
  * 1. GET  /api/query   → 客户安全查询（只返回匹配的订单，不暴露全部数据）
  * 2. GET  /api/orders  → 读取全部订单（需管理员密码，仅管理后台使用）
- * 3. PUT  /api/orders  → 写入订单数据到COS（需管理员密码）
+ * 3. PUT  /api/orders  → **合并式**写入订单（需管理员密码）
+ *                        以云端数据为基准合并改动，多设备同时编辑不会互相覆盖
+ *                        请求体：{orders:[...], deletes:[id或单号...], clearAll:bool}
  * 4. GET  /api/verify   → 验证管理员密码
  * 5. OPTIONS *          → CORS预检
  *
@@ -128,6 +130,81 @@ function parseEvent(event) {
   }
 
   return { method: method, path: path, headers: headers, body: body, isBase64: isBase64, queryParams: queryParams };
+}
+
+// ========= 合并工具（防止多设备互相覆盖）=========
+// 订单唯一标识：有快递单号 → 用单号；无单号 → 用 id
+function orderKey(o) {
+  if (o.trackNo) return 'T:' + String(o.trackNo).trim();
+  return 'I:' + String(o.id);
+}
+
+function orderTime(o) {
+  return String(o.updatedAt || o.createdAt || '');
+}
+
+// 把客户端提交的改动合并进云端基准数据
+function mergeOrders(base, incoming, deletes, clearAll) {
+  if (clearAll) return { orders: [], added: 0, updated: 0, deleted: base.length };
+
+  var delIds = {};
+  var delNos = {};
+  for (var d = 0; d < deletes.length; d++) {
+    var dv = String(deletes[d] || '').trim();
+    if (dv) { delIds[dv] = true; delNos[dv] = true; }
+  }
+
+  var result = [];
+  var keyMap = {};
+
+  // 1. 以云端数据为基准（先剔除被删除的记录）
+  for (var i = 0; i < base.length; i++) {
+    var bo = base[i];
+    if (delIds[String(bo.id)] || (bo.trackNo && delNos[String(bo.trackNo)])) continue;
+    var bk = orderKey(bo);
+    result.push(bo);
+    if (!keyMap[bk]) keyMap[bk] = bo;
+  }
+
+  // 2. 合并客户端的改动
+  var added = 0, updated = 0;
+  for (var j = 0; j < incoming.length; j++) {
+    var no = incoming[j];
+    if (!no || typeof no !== 'object') continue;
+
+    var existing = null;
+    if (no.trackNo && keyMap['T:' + String(no.trackNo).trim()]) {
+      existing = keyMap['T:' + String(no.trackNo).trim()];
+    }
+    if (!existing && keyMap['I:' + String(no.id)]) {
+      existing = keyMap['I:' + String(no.id)];
+    }
+    // 兼容：无单号的待发货订单，按手机号匹配云端同样无单号的记录
+    if (!existing && !no.trackNo && no.phone) {
+      for (var m = 0; m < result.length; m++) {
+        if (!result[m].trackNo && result[m].phone === no.phone) { existing = result[m]; break; }
+      }
+    }
+
+    if (existing) {
+      // 只有本地版本不比云端旧时才覆盖，避免旧快照冲掉新数据
+      if (orderTime(no) >= orderTime(existing)) {
+        if (no.name) existing.name = no.name;
+        if (no.phone) existing.phone = no.phone;
+        if (no.trackNo) existing.trackNo = no.trackNo;
+        if (no.product !== undefined && no.product !== '') existing.product = no.product;
+        if (no.status) existing.status = no.status;
+        if (no.updatedAt) existing.updatedAt = no.updatedAt;
+        updated++;
+      }
+    } else {
+      result.push(no);
+      keyMap[orderKey(no)] = no;
+      added++;
+    }
+  }
+
+  return { orders: result, added: added, updated: updated };
 }
 
 // ========= 频率限制（内存版）=========
@@ -302,7 +379,7 @@ exports.main_handler = async function (event, context) {
     }
   }
 
-  // ===== PUT/POST /api/orders - 写入订单 =====
+  // ===== PUT/POST /api/orders - 合并式写入订单（防止多设备互相覆盖）=====
   if (apiPath === '/api/orders' && (method === 'PUT' || method === 'POST')) {
     // 获取管理员密码（header名可能大小写不一）
     var adminPwd = '';
@@ -325,13 +402,56 @@ exports.main_handler = async function (event, context) {
         bodyStr = Buffer.from(bodyStr, 'base64').toString('utf-8');
       }
 
+      // 兼容两种格式：{orders:[...], deletes:[...], clearAll:bool} 或直接是数组
+      var payload;
+      try {
+        payload = JSON.parse(bodyStr);
+      } catch (pe) {
+        return jsonResp(400, JSON.stringify({ error: 'JSON格式错误' }));
+      }
+      var incoming = Array.isArray(payload) ? payload : (payload.orders || []);
+      var deletes = Array.isArray(payload.deletes) ? payload.deletes : [];
+      var clearAll = payload.clearAll === true;
+
+      // 1. 先读取云端现有数据作为合并基准
+      var baseOrders = [];
+      try {
+        var r0 = await cosRequest('GET', '/' + DATA_KEY + '?t=' + Date.now());
+        if (r0.statusCode === 200) {
+          var parsed0 = JSON.parse(r0.body);
+          baseOrders = parsed0.orders || [];
+        }
+      } catch (e0) {
+        console.error('读取云端基准失败:', e0);
+        // 读取失败时如果是全量覆盖请求，拒绝执行，避免误清空云端
+        if (!clearAll) {
+          return jsonResp(503, JSON.stringify({ error: '读取云端数据失败，已取消本次保存以防误覆盖，请重试' }));
+        }
+        baseOrders = [];
+      }
+
+      // 2. 合并
+      var merged = mergeOrders(baseOrders, incoming, deletes, clearAll);
+      var finalOrders = merged.orders;
+
+      // 3. 写回云端
+      var writeBody = JSON.stringify({ orders: finalOrders });
       var resp = await cosRequest('PUT', '/' + DATA_KEY, {
         'Content-Type': 'application/json',
         'x-cos-acl': 'private'
-      }, bodyStr);
+      }, writeBody);
 
       if (resp.statusCode === 200) {
-        return jsonResp(200, JSON.stringify({ success: true }));
+        return jsonResp(200, JSON.stringify({
+          success: true,
+          orders: finalOrders,
+          stats: {
+            total: finalOrders.length,
+            added: merged.added,
+            updated: merged.updated,
+            deleted: merged.deleted || 0
+          }
+        }));
       } else {
         console.error('COS PUT error:', resp.statusCode, resp.body);
         return jsonResp(resp.statusCode, JSON.stringify({ error: 'COS写入失败', detail: resp.body }));
